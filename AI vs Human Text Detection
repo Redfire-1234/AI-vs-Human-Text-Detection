@@ -1,0 +1,219 @@
+!pip uninstall -y transformers accelerate sentence-transformers peft
+!rm -rf /usr/local/lib/python3.12/dist-packages/transformers
+!rm -rf /root/.cache/huggingface
+
+!pip  install -q transformers==4.40.2
+!pip  install -q sentence-transformers==3.0.1
+!pip  install -q accelerate==0.27.2
+!pip  install -q datasets evaluate scikit-learn
+
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from sentence_transformers import SentenceTransformer
+from datasets import load_dataset
+
+print("All good!")
+
+import pandas as pd
+
+data = {
+    "text": [
+        "Artificial intelligence will soon transform the world...",  # human
+        "The economic impact of climate change is significant...",    # human
+        "AI systems are designed to provide coherent and helpful responses based on patterns...", # AI
+        "The model analyzes user input and generates contextual content..."                      # AI
+    ],
+    "label": [
+        0, 0, 1, 1   # 0 = human, 1 = AI
+    ]
+}
+
+df = pd.DataFrame(data)
+df.to_csv("ai_human_dataset.csv", index=False)
+
+df
+
+
+from datasets import load_dataset
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+import pandas as pd
+
+df = pd.read_csv("ai_human_dataset.csv")
+dataset = load_dataset("csv", data_files={"train": "ai_human_dataset.csv"})
+dataset
+
+
+def tokenize(batch):
+    return tokenizer(
+        batch["text"],
+        padding="max_length",
+        truncation=True,
+        max_length=256
+    )
+
+
+tokenized_dataset = dataset.map(tokenize, batched=True)
+tokenized_dataset
+
+
+from transformers import AutoModelForSequenceClassification
+
+model = AutoModelForSequenceClassification.from_pretrained(
+    "bert-base-uncased",
+    num_labels=2  # 0=human, 1=AI
+)
+
+
+from transformers import DataCollatorWithPadding
+
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+
+from transformers import TrainingArguments
+
+training_args = TrainingArguments(
+    output_dir="bert-ai-human",
+    learning_rate=2e-5,
+    per_device_train_batch_size=2,
+    num_train_epochs=4,
+    weight_decay=0.01,
+    logging_steps=1,
+    report_to=[]  # <-- disables wandb/other loggers
+)
+
+from transformers import Trainer
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset["train"],
+    tokenizer=tokenizer,
+    data_collator=data_collator
+)
+
+
+trainer.train()
+
+
+import torch
+
+
+def predict_text(text):
+    # Tokenize input
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=256
+    )
+
+    # Move to device (CPU/GPU)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Get model output
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        predicted_class = torch.argmax(logits, dim=1).item()
+        confidence = torch.softmax(logits, dim=1)[0, predicted_class].item()
+
+    # Return readable result
+    label_map = {0: "Human", 1: "AI"}
+    return {"label": label_map[predicted_class], "confidence": round(confidence, 3)}
+
+
+sample_text1 = "The impact of climate change on agriculture is undeniable."
+sample_text2 = "AI generates responses based on patterns it learned from data."
+
+print(predict_text(sample_text1))
+print(predict_text(sample_text2))
+
+
+# Save model + tokenizer
+model.save_pretrained("bert-ai-human-model")
+tokenizer.save_pretrained("bert-ai-human-model")
+
+# Load model later
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+loaded_model = AutoModelForSequenceClassification.from_pretrained("bert-ai-human-model")
+loaded_tokenizer = AutoTokenizer.from_pretrained("bert-ai-human-model")
+
+
+# Step 1: Install required packages
+
+!pip install -q streamlit pyngrok
+!pip install -q lime
+
+
+%%writefile app.py
+import streamlit as st
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from lime.lime_text import LimeTextExplainer
+
+st.title("AI vs Human Text Classifier with Explainability")
+
+text = st.text_area("Enter text to classify")
+
+if st.button("Predict"):
+    # Load model and tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("bert-ai-human-model")
+    model = AutoModelForSequenceClassification.from_pretrained("bert-ai-human-model")
+    model.eval()
+
+    # Tokenize input
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=256)
+
+    # Prediction
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = torch.softmax(outputs.logits, dim=1).numpy()[0]
+        predicted_class = int(torch.argmax(outputs.logits, dim=1))
+
+    label_map = {0: "Human", 1: "AI"}
+    st.write(f"**Prediction:** {label_map[predicted_class]}")
+
+    # Confidence bar
+    st.progress(int(probs[predicted_class]*100))
+    st.write(f"**Confidence:** {probs[predicted_class]:.3f}")
+
+    # LIME explanation
+    class_names = ["Human", "AI"]
+    explainer = LimeTextExplainer(class_names=class_names)
+
+    def predict_fn(texts):
+        inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=256)
+        with torch.no_grad():
+            logits = model(**inputs).logits
+        return torch.softmax(logits, dim=1).numpy()
+
+    st.write("**Words influencing the prediction:**")
+    exp = explainer.explain_instance(text, predict_fn, num_features=10)
+    st.write(exp.as_list())
+
+
+from pyngrok import ngrok
+
+# Replace 'YOUR_NGROK_AUTHTOKEN' with your actual authtoken from the ngrok dashboard
+ngrok.set_auth_token('YOUR_NGROK-AUTHTOKEN')
+
+print("ngrok authtoken set!")
+
+from pyngrok import ngrok
+
+# Kill old processes to ensure a clean restart
+!kill $(lsof -t -i:8501) || echo "No old process running on port 8501"
+
+# Run Streamlit in the background
+get_ipython().system_raw("streamlit run app.py --server.port 8501 &")
+
+# Open public URL
+public_url = ngrok.connect(8501)
+print("Open this URL in your browser:")
+print(public_url)
