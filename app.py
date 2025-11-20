@@ -9,7 +9,7 @@ text = st.text_area("Enter text to classify")
 
 if st.button("Predict"):
     # Load model and tokenizer
-    HF_REPO = "https://huggingface.co/Redfire-1234/bert-ai-human-model"  # <-- CHANGE THIS
+    HF_REPO = "Redfire-1234/bert-ai-human-model"  # <-- CHANGE THIS
     tokenizer = AutoTokenizer.from_pretrained(HF_REPO)
     model = AutoModelForSequenceClassification.from_pretrained(HF_REPO)
     model.eval()
