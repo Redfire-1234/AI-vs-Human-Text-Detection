@@ -12,7 +12,7 @@ HF_MODEL_REPO = "Redfire-1234/bert-ai-human-model"  # Your fine-tuned model repo
 # Load model once (not inside button)
 @st.cache_resource
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")  # base tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_REPO)  # base tokenizer
     model = AutoModelForSequenceClassification.from_pretrained(HF_MODEL_REPO)
     model.eval()
     return tokenizer, model
