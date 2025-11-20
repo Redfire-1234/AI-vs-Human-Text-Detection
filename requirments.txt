@@ -1,11 +1,16 @@
+# Add the extra index URL for CPU-only packages at the top
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Now list your packages. You can use simple package names.
 streamlit
-torch
+torch==2.2.0  # Use the version you were targeting
 transformers==4.40.2
 sentence-transformers==3.0.1
 accelerate==0.27.2
 lime
 datasets
 scikit-learn
+
 
 
 
