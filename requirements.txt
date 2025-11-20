@@ -1,12 +1,10 @@
-torch
 streamlit
-huggingface-hub
-transformers==4.38.2
-sentence-transformers==2.2.2
-accelerate==0.27.2
+torch
+transformers
 lime
-datasets
 scikit-learn
+
+
 
 
 
