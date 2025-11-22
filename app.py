@@ -2,9 +2,8 @@ import streamlit as st
 import torch
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from lime.lime_text import LimeTextExplainer
 
-st.title("AI vs Human Text Classifier with Explainability")
+st.title("AI vs Human Text Classifier")
 
 text = st.text_area("Enter text to classify")
 
@@ -36,22 +35,9 @@ if st.button("Predict"):
         predicted_class = int(torch.argmax(outputs.logits, dim=1))
 
     label_map = {0: "Human", 1: "AI"}
-    st.write(f"**Prediction:** {label_map[predicted_class]}")
+    st.subheader(f"Prediction: {label_map[predicted_class]}")
     st.progress(int(probs[predicted_class] * 100))
-    st.write(f"**Confidence:** {probs[predicted_class]:.3f}")
+    st.write(f"Confidence: {probs[predicted_class]:.3f}")
 
-    class_names = ["Human", "AI"]
-    explainer = LimeTextExplainer(class_names=class_names)
-
-    def predict_fn(texts):
-        inputs = tokenizer(texts, return_tensors="pt", truncation=True,
-                           padding=True, max_length=256).to(device)
-        with torch.no_grad():
-            logits = model(**inputs).logits
-        return torch.softmax(logits, dim=1).cpu().numpy()
-
-    st.write("**Words influencing the prediction:**")
-    exp = explainer.explain_instance(text, predict_fn, num_features=10)
-    st.write(exp.as_list())
 
 
